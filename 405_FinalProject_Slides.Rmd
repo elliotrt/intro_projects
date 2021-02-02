@@ -1,0 +1,187 @@
+---
+title: "The Effect of a Pandemic on the NYC Taxi Industry"
+author: "Group 19 - Ross Bechtel, Kyle Manning, Samiksha Deme, Elliot Riesman-Tremonte"
+date: "11/5/2020"
+output: ioslides_presentation
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Introduction
+## Summary
+ * In this report, we analyse the impact that Covid-19 has had on the taxi industry in New York City, in order to learn more about this pandemic’s impact on the city as a whole. We decided to use taxi data as taxis are an integral part of the transportation system of the city. We decided to compare taxi data from earlier the same year in January 2020 to taxi data in April 2020, after the virus had already begun to affect New York and after lock downs were already implemented.
+
+# Datasets
+## Primary Dataset
+  * Our main dataset is the NYC Yellow Taxi data motor vehicle from the official NYC taxi website 
+(link: https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page). It is really a combination of four datasets (January, February, March, April) as the datasets are split up by month on the taxi website.
+  * It contains a row of data for each trip. There are 1,000,000 + trips per month.
+  * Columns include data on pickup and drop off location, pricing information and breakdown, trip distance and many more
+  interesting variables.
+  
+## Secondary Dataset
+  * The auxillary dataset can be found at https://github.com/nychealth/coronavirus-data/blob/master/tests.csv. It
+contains daily covid testing data for NYC starting in March and continuing until the current date. The auxillary
+dataset will allow us to relate the pandemic to the taxi date due to the common column of date. We will
+be able to see exactly how many positive tests there were on a given day that taxi trips were occurring.
+
+## Goal
+### ***Find out how much the taxi industry was affected***
+
+* Determine how the industry as a whole was affected.
+* Determine how drivers were affected.
+* Relationship between changes in taxi trends and changes in covid data trends.
+
+# Data Exploration
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(knitr) 
+library(lubridate)
+library(maps)
+library(ggthemes)
+library(RColorBrewer)
+library(RSQLite)
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(ggmap)
+library(knitr)
+library(dplyr)
+library(tidyverse)
+library(forcats)
+library(gridExtra)
+library(RSQLite)
+library(jsonlite)
+library(gtable)
+library(grid)
+library(latex2exp)
+library(gridBase)
+library(nnet)
+library(magrittr)
+library(ggplot2)
+
+dcon <- dbConnect(SQLite(), dbname = "/Users/rossbechtel/Downloads/TaxicabNYC.db")
+
+res <- dbSendQuery(conn=dcon, "SELECT * FROM  taxis_jan")
+taxi_jan <- dbFetch(res, -1)
+dbClearResult(res)
+
+res <- dbSendQuery(conn=dcon, "SELECT * FROM  taxis_feb")
+taxi_feb <- dbFetch(res, -1)
+dbClearResult(res)
+
+res <- dbSendQuery(conn=dcon, "SELECT * FROM  taxis_mar")
+taxi_mar <- dbFetch(res, -1)
+dbClearResult(res)
+
+res <- dbSendQuery(conn=dcon, "SELECT * FROM  taxis_april")
+taxi_apr <- dbFetch(res, -1)
+dbClearResult(res)
+
+res <- dbSendQuery(conn=dcon, "SELECT * FROM  covid")
+covid <- dbFetch(res, -1)
+dbClearResult(res)
+
+dbDisconnect(dcon)
+
+mar <- mutate(taxi_mar, DATE = as.Date(str_sub(tpep_pickup_datetime, 1, 10), format = "%Y-%m-%d"))
+apr <- mutate(taxi_apr, DATE = as.Date(str_sub(tpep_pickup_datetime, 1, 10), format = "%Y-%m-%d"))
+cov <- mutate(covid, DATE = as.Date(DATE, format = "%m/%d/%Y"))
+
+mar_cov <- merge(mar, cov, by="DATE")
+apr_cov <- merge(apr, cov, by="DATE")
+```
+
+## Tipping in March
+```{r, echo=FALSE, message=FALSE}
+theme1 <- theme_bw() +
+          theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+          axis.title = element_text(size = 10, colour = "#2f2f63"),
+          legend.title = element_text(size = 8, colour = "#2f2f63"),
+          legend.text = element_text(size = 8, colour = "#6b3447"),
+          title = element_text(size = 12, colour = "#2f2f63"),
+          axis.ticks = element_line(colour = "#6b3447"),
+          plot.caption = element_text(size = 8, colour = "#2f2f63"),
+          plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+
+bot <- filter(mar_cov, DATE < as.Date("04/01/2020", format = "%m/%d/%Y")) %>%
+        group_by(DATE) %>%
+          summarise(total_to_tip = sum(tip_amount) / sum(total_amount))
+
+ggplot(bot) +
+  geom_point(aes(x=DATE, y=total_to_tip)) +
+  labs(x = "Date", y = "Fraction of Total Amount Tipped") +
+  ggtitle("Fraction of Total Amount Tipped over March") +
+  theme1
+``` 
+
+## Cases in March
+```{r, echo=FALSE, message=FALSE}
+filter(cov, DATE < as.Date("04/01/2020", format = "%m/%d/%Y")) %>%
+  ggplot() +
+    geom_point(aes(x=DATE, y=POSITIVE_TESTS)) +
+    labs(x = "Date", y = "Positive Tests") +
+    ggtitle("Positive Tests over March") + 
+    theme1
+```
+
+## Tipping in April
+```{r, echo=FALSE, message=FALSE}
+theme1 <- theme_bw() +
+          theme(axis.text = element_text(size = 8, colour = "#6b3447"),
+          axis.title = element_text(size = 10, colour = "#2f2f63"),
+          legend.title = element_text(size = 8, colour = "#2f2f63"),
+          legend.text = element_text(size = 8, colour = "#6b3447"),
+          title = element_text(size = 12, colour = "#2f2f63"),
+          axis.ticks = element_line(colour = "#6b3447"),
+          plot.caption = element_text(size = 8, colour = "#2f2f63"),
+          plot.subtitle = element_text(size = 10, colour = "#2f2f63"))
+
+bot1 <- filter(apr_cov, DATE < as.Date("05/01/2020", format = "%m/%d/%Y") & DATE > as.Date("04/01/2020", format = "%m/%d/%Y")) %>%
+        group_by(DATE) %>%
+          summarise(total_to_tip = sum(tip_amount) / sum(total_amount))
+
+ggplot(bot1) +
+  geom_point(aes(x=DATE, y=total_to_tip)) +
+  labs(x = "Date", y = "Fraction of Total Amount Tipped") +
+  ggtitle("Fraction of Total Amount Tipped over April") +
+  theme1
+``` 
+
+## Cases in April
+```{r, echo=FALSE, message=FALSE}
+filter(cov, DATE < as.Date("05/01/2020", format = "%m/%d/%Y") & DATE > as.Date("04/01/2020", format = "%m/%d/%Y")) %>%
+  ggplot() +
+    geom_point(aes(x=DATE, y=POSITIVE_TESTS)) +
+    labs(x = "Date", y = "Positive Tests") +
+    ggtitle("Positive Tests over April") + 
+    theme1
+```
+
+## Passenger Comparison
+```{r, echo=FALSE, message=FALSE}
+taxi.new <- mutate(taxi_jan,weekday = wday(tpep_pickup_datetime,label=TRUE,abbr=TRUE))
+taxi.newapril<-mutate(taxi_apr,weekday = wday(tpep_pickup_datetime,label=TRUE,abbr=TRUE))
+tax1<-taxi.new %>% select(passenger_count, weekday) %>% group_by(weekday)%>%summarise(count=n())
+tax2<-taxi.newapril %>% select(passenger_count, weekday) %>% group_by(weekday)%>%summarise(count=n())
+ggplot()+geom_line(data=tax1, aes(x=weekday, y=count, group=1, color="red"), size=1.5)+geom_line(data=tax2, aes(x=weekday, y=count, group=1,color="blue"),size=1.5)+theme1+ggtitle("Total Passenger Volume by Weekday in January and April")+labs(x="Weekday", y="Total Passenger Count")+scale_color_discrete(name="Legend", labels=c("January", "April"))
+
+```
+
+# Modeling
+## Linear Regression
+Coming soon
+
+# Summary
+
+## 
+### **Conclusion**
+* Since there was a clear correlation established between tipping and case count, its fair to assume that
+passengers were tipping less as they were about their financially stability when case counts were high.
+
+### **Takeaways**
+* Coming soon

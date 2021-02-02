@@ -1,0 +1,298 @@
+---
+title: "Why aren't there any 6-win or 6-loss teams in our league"
+author: "Elliot Riesman-Tremonte"
+date: "11/22/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(ggdag)
+
+library(combinat)
+
+```
+
+\section{Introduction}
+  Through 10 weeks of Fantasy Football play, our league's playoff picture is still cloudy. As usual, many teams are still competitive for a playoff berth while some players have failed to live up to expectations. What is unusual, however, is the absence of a 4-6 team or a 6-4 team. This phenomenon seems strange, and in this report I will examine the likelihood of this occurrence from a variety of statistical perspectives. 
+  
+\subsection{Data}
+  At first, I will examine the lack of 4-6 or 6-4 teams from a purely scheduling perspective. In other words, assuming that our teams and managerial decisions are fixed (but not the East/West divisions and schedules), what is the likelihood of a random schedule producing this phenomenon? I will obtain this data by directly copying from our league's scoreboard. Unfortunately, ESPN does not provide a CSV or TXT file to directly load into RStudio.
+  Then using the data, I will try to generalize to hypothetical leagues whose weekly scoring distributions mimic our own league. This data will be obtained from specific distribution functions in R packages (rnorm, etc.).
+
+\section{Research Question}
+How ridiculous is the current absence of 4-6 or 6-4 teams?
+
+\section{Our League}
+
+\subsection{Lots of Possible Schedules}
+  There are several criteria that make a schedule in 10-team ESPN fantasy leagues valid. No team can play the same team twice in consecutive weeks. Each team must play each division rival twice and each interdivisional opponent once. Combinatorially, there is a massive number of possible league schedules. Take Week 1 for example. Suppose you designate each team A, B, C, ... J:
+  \begin{itemize}
+    \item $A$ can play any team $X$ in the 9-element set $[B, J]$
+    \item Some team $Y$ (that is not $X$ or $A$) can play any of the remaining 7 teams
+    \item Repeat this process to find there are $9*7*5*3*1 = 945$ possible schedules in any given week.
+  \end{itemize}
+This result can also be obtained this way:
+  \begin{itemize}
+    \item There are $10!$ ways to order a list of 10 unique teams
+    \item Remember that a particular schedule AB, CD, EF, GH, IJ is equivalent to a schedule BA, CD, EF, GH, IJ
+      \begin{itemize}
+        \item So, there are $2^5$ ways to express any particular order of 5 matchups
+      \end{itemize}
+    \item Remember that ordering of the matchups also does not matter. There are $5!$ ways of ordering a set of matchups, all of which should only be counted once.
+    \item $\frac{10!}{2^55!}\ = 945$
+  \end{itemize}
+Yes, in any given week, divisional and counting constraints will significantly reduce this number, but there are still a lot of possible schedules.
+
+\subsection{We only really use 1 schedule}
+
+Thankfully, ESPN does not schedule by creating all possible valid schedules and then selecting one at random. Instead, ESPN 2-division, 10-team schedules are super easy to understand.
+  \begin{itemize}
+    \item General Setup
+      \begin{itemize}
+        \item Each team will play all 4 divisional opponents, as well as 1 interdivisional opponent, in the first 5 weeks.
+        \item Each team will play all 4 divisional opponents, as well as 1 interdivisional opponent, int the last 5 weeks.
+        \item In Weeks 6-8, all teams play interdivisional opponents.
+      \end{itemize}
+    \item Visualizing the Schedule
+      \begin{itemize}
+        \item Look at the diagram presented below
+        \item The East and West teams are designated E1, ... E5 and W1, ... W5
+        \item In weeks 1 through 5:
+          \begin{itemize}
+             \item E1 plays W1 in Week 1, E2 plays W2 in Week 2, and so forth.
+             \item When an East team, say EX, is playing its interdivisional matchup in Week X, the teams adjacent to EX on the diagram will play each other. The teams non-adjacent to EX on the diagram will play each other. The same goes for the West division.
+          \end{itemize}
+        \item In Weeks 6 through 8, W1 plays E3, E4 and E5, in that order. W2 plays E4, E5, E1. W3 plays E5, E1, E2, etc.
+        \item Before Week 9, E1 becomes E2, E2 becomes E3, E3 become E4, E4 becomes E5 and E5 becomes E1.
+        \item After such rotation, Weeks 9 through 13 are played the exact same way as weeks 1 through 5. This rotation enables the schedule to work for all criteria.
+        \item To help understand this process, E1 and W1 are Alex and Aaron, respectively, in our league.
+        
+      \end{itemize}
+  \end{itemize}
+This leaves us with only $10! = 3268800$ total schedules, because each team in our league can occupy any one of these schedules.
+  
+  
+
+```{r, echo = FALSE}
+CAL <- c(139.3, 133.74, 103.3, 104.12, 83.2, 71.32, 100.8, 37.3, 78.82, 87)
+ELL <- c(106.56, 77.48, 103.82, 115.9, 107.54, 83.14, 118.1, 132.66, 85.96, 74.98)
+EMM <- c(109.98, 115.3, 139.34, 118.12, 118.84, 83.98, 106.78, 100.46, 116.7, 89.26)
+SEB <- c(83.9, 136.24, 126.2, 94.1, 110.82, 74.32, 127.86, 119.12, 98.44, 111.28)
+ALX <- c(95.1, 98.58, 101.14, 118.3, 113.94, 98.82, 122.02, 111.12, 111.46, 84.04)
+EJO <- c(114.7, 115.66, 84.08, 104.62, 104.1, 129.64, 85.72, 69.72, 98.5, 87.26)
+EBE <- c(87.84, 112.28, 116.4, 71.62, 90.5, 87.7, 85.66, 87.24, 81.28, 45.1)
+JUS <- c(106.58, 120.5, 112.72, 114.98, 85.86, 115.48, 100.62, 89.48, 57.04, 135.0)
+AAF <- c(81.78, 114.42, 151.8, 108.8, 103.38, 82.64, 110.22, 64.44, 94.8, 52.62)
+TOM <- c(139.92, 126.8, 114.76, 122.5, 135.44, 158.1, 77.76, 126.14, 110.94, 103.72)
+```
+
+
+```{r, echo = FALSE}
+dag <- dagitty::dagitty("dag {
+    W1 -> W2 -> W3 -> W4 -> W5 -> W1
+    E1 -> E2 -> E3 -> E4 -> E5 -> E1
+  }"
+)
+ggdag(dag) +
+  theme_dag()
+```
+\subsection{Creating a Schedule matrix}
+  In the matrix below, rows represent Weeks. In any particular row, the 1st and 2nd element play each other, etc.
+
+```{r, echo=FALSE}
+
+
+schedule <- matrix(nrow = 10, ncol = 10)
+schedule[1, ] <- t(as.matrix(c(1, 6, 2, 5, 3, 4, 8, 9, 7, 10)))
+schedule[2, ] <- t(as.matrix(c(2, 7, 1, 3, 4, 5, 6, 8, 9, 10)))
+schedule[3, ] <- t(as.matrix(c(3, 8, 2, 4, 7, 9, 1, 5, 6, 10)))
+schedule[4, ] <- t(as.matrix(c(4, 9, 3, 5, 8, 10, 1, 2, 6, 7)))
+schedule[5, ] <- t(as.matrix(c(5, 10, 1, 4, 6, 9, 2, 3, 7, 8)))
+schedule[6, ] <- t(as.matrix(c(6, 2, 7, 3, 8, 4, 9, 5, 10, 1)))
+schedule[7, ] <- t(as.matrix(c(6, 3, 7, 4, 8, 5, 9, 1, 10, 2)))
+schedule[8, ] <- t(as.matrix(c(6, 4, 7, 5, 8, 1, 9, 2, 10, 3)))
+schedule[9, ] <- t(as.matrix(c(6, 5, 2, 3, 1, 4, 8, 9, 7, 10)))
+schedule[10, ] <- as.matrix(c(1, 7, 3, 4, 2, 5, 6, 10, 7, 8))
+schedule
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+\subsection{Creating a function}
+The function 'scoring', seen below takes a schedule matrix and a vector of 'teams' that match the numbers 1 through 10 to specific teams
+
+```{r, echo = TRUE}
+
+#Here is the function scoring
+
+scoring <- function (mat, teams) {
+  win_vec <- c(rep(0, 10))
+  for (i in 1:10) {
+    for (j in seq(from = 1, to = 9, by = 2))
+      if (teams[i, mat[i, j]] >= teams[i, mat[i, j + 1]]) {
+        win_vec[mat[i, j]] <- win_vec[mat[i, j]] + 1
+      } else {
+        win_vec[mat[i, j + 1]] <- win_vec[mat[i, j + 1]] + 1
+      }
+  }
+  win_vec
+}
+#Current schedule loads the current schedule we have used this season
+
+current_schedule <- cbind(ALX, EJO, TOM, EBE, EMM, AAF, CAL, SEB, ELL, JUS)
+
+current_schedule
+
+names <- c("Alex", "Eli J", "Tom", "Eli B", "Emmett", "Aaron", "Mike", "Seb", "Elliot", "Justin")
+
+cbind(names, scoring(schedule, current_schedule))
+
+```
+
+As you can see, running the scoring function on our existing schedule properly apportions the amount of wins each team should have.
+
+\section{Generating Random Orders of Teams}
+
+In this section, 100,000 random team schedules are selected from the over 3 million permutations of 10 elements in a list. Then the 'scoring' function is called to see what the league wins outcome will be. The histogram provides a visualization of how many teams are 4-6 and 6-4 in different situations. The final number provides the percentage of leagues that have none of these teams.
+
+
+```{r}
+k1 <- permn(1:10)
+k2 <- sample(k1, 100000)
+data_final <- rep(0, 100000)
+for (l in 1:100000) {
+  team_order <- as.matrix(current_schedule[, k2[[l]][1]])
+  for (m in 2:10) {
+    team_order <- cbind(team_order, current_schedule[, k2[[l]][m]])
+  }
+  wins <- scoring(schedule, team_order)
+  data_final[l] <- length(wins[wins == 4 | wins == 6])
+}
+#Mean number of teams with either 6 wins or 6 losses
+mean(data_final)
+
+#Number of 0-situations
+length(data_final[data_final == 0])
+
+hist(data_final, main = "Distribution of Number of 6 win/loss teams after 10 weeks", breaks = c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5), xlab = "Number of such teams in rearranged league")
+
+#Portion of Simulations that satisfy the criteria
+length(data_final[data_final == 0]) / length(data_final)
+
+
+```
+```{r, echo = FALSE}
+scoring2 <- function (mat, teams) {
+  win_vec <- c(rep(0, 10))
+  for (i in 1:10) {
+    for (j in seq(from = 1, to = 9, by = 2))
+      if (teams[i, mat[i, j]] >= teams[i, mat[i, j + 1]]) {
+        win_vec[mat[i, j]] <- win_vec[mat[i, j]] + 1
+      } else {
+        win_vec[mat[i, j + 1]] <- win_vec[mat[i, j + 1]] + 1
+      }
+  }
+  win_vec
+}
+
+
+
+
+k3 <- permn(1:10)
+k4 <- sample(k3, 100000)
+data_final2 <- rep(0, 100000)
+for (l in 1:100000) {
+  team_order <- as.matrix(current_schedule[, k4[[l]][1]])
+  for (m in 2:10) {
+    team_order <- cbind(team_order, current_schedule[, k4[[l]][m]])
+  }
+  z <- scoring(schedule, team_order)
+  data_final2[l] <- z[match(9, k4[[l]])]
+}
+mean(data_final2)
+
+length(data_final2[data_final2 == 10])
+
+```
+Between 1 and 2 percent of league scenarios resulted in 0 6W/6L teams.
+
+\section{Randomizing leagues similar to ours}
+\subsection{Looking at weekly team/league scores}
+
+```{r}
+points <- as.matrix(as.vector(current_schedule))
+weeks <- c(rep(1:10, 10))
+players <- c(rep("Alex", 10), rep("Eli J", 10), rep("Tom", 10),
+             rep("Eli B", 10), rep("Emmett", 10), rep("Aaron", 10),
+             rep("Mike", 10), rep("Seb", 10), rep("Elliot", 10),
+             rep("Justin", 10))
+df1 <- data.frame(points, weeks, players)
+
+
+wksmodel <- summary(lm(data = df1, points ~ weeks))
+plot(x = df1$weeks, y = df1$points, xlab = "Weeks", ylab = "Points") +
+  abline(a = wksmodel$coefficients[1], b = wksmodel$coefficients[2])
+
+```
+P-values are relatively low here. Now I am adding, as a regressor, the mean of a team's output.
+
+\subsection{Simulating team scores based on a linear model with 2 regressors}
+
+```{r}
+player_means <- function(player) {
+  mean(df1$points[df1$players == player])
+}
+df1$means <- sapply(df1$players, player_means)
+
+#Creating a linear model using the R lm function
+
+model_points <- summary(lm(data = df1, points ~ means + weeks))
+
+fit_value <- function(week, team) {
+  model_points$coefficients[1] + team*model_points$coefficients[2] + week*model_points$coefficients[3]
+}
+sterror <- model_points$sigma
+```
+
+This model 'model_points' will serve as an estimator of a random team's points over the first 10 weeks of a season, given the Week # and a team's average point total. Of course, these point totals vary and we must check to see if team's mean points per week follow a normal distribution. A Normal QQ-Plot can help to support or contradict a normality assumption.
+
+```{r, echo = FALSE}
+team_means <- df1$means[seq(from = 1, to = 100, by = 10)]
+qqnorm(team_means)
+```
+
+Even though 10 is an extremely small dataset, for the purposes of this exercise, mean points per week by team can follow a normal distribution, especially because the Normal QQ plot generally follows a straight line.
+
+Here, we compute a random league matrix for 10 teams in 10 weeks. Each column has a specified team mean.
+
+```{r}
+sd_means <- sd(team_means)
+
+ran_matrix <- matrix(c(rep(0, 100)), ncol = 10)
+ran_data <- c(rep(0, 100000))
+
+#Running 100,000 simulations of random leagues
+for (c in 1:100000) {
+    ran_means <- rnorm(10, mean = mean(team_means), sd = sd_means)
+    for (a in 1:10) {
+      for (b in 1:10)
+        ran_matrix[b, a] <- fit_value(b, ran_means[a]) + rnorm(1, mean = 0, sd = sterror)
+    }
+    ran_wins <- scoring(schedule, ran_matrix)
+    ran_data[c] <- length(ran_wins[ran_wins == 4 | ran_wins == 6])
+}
+
+hist(ran_data, main = "Distribution of Number of 6 win/loss teams after 10 weeks", breaks = c(-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5), xlab = "Number of such teams in simulated league")
+
+#Mean number of 6W/6L teams
+mean(ran_data)
+
+#Portion of 0-situations among randomly determined leagues
+length(ran_data[ran_data == 0]) / length(ran_data)
+
+```
+\section{Conclusion}
+
+It's pretty weird that there aren't any 6-win or 6-loss teams. There appears to be a roughly 1.5% chance of this happening in a given league given ESPN standard 2-division, 10-team scoring. In our league, assuming managerial and draft decisions constant, about 1.5% of schedules produce no 6-win or 6-loss teams. In other words, there doesn't seem to be something about our league's scoring to date that increases the chances of this phenomenon happening. It's weird, but not that weird.

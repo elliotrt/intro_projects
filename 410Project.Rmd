@@ -1,0 +1,214 @@
+---
+title: "SenateStuff"
+author: "Elliot Riesman-Tremonte, Moses Glickman"
+date: "11/15/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project Setup
+
+```{r, echo = TRUE}
+#Setting up the Dataset by reading a Microsoft Excel file
+library(readxl)
+library(ggplot2)
+library(dplyr)
+s410 <- read_excel("Downloads/S410 Senate Datasheet.xlsx")
+s410$Trends[11] <- 7
+
+for (j in 1:nrow(s410)) {
+  if (s410$Caucus[j] == "R") {
+    s410$Caucus[j] = 1
+  } else {
+    s410$Caucus[j] = 0
+  }
+}
+
+s410$leverage <- rep(0, nrow(s410))
+
+s410$Caucus <- as.numeric(s410$Caucus)
+
+s410$logpop <- log(s410$Population)
+
+#Setting up the y-matrix, x-matrix and the hat-matrix
+x_sampmat <- cbind(1, s410$PVI, s410$Tscore, s410$Population, s410$PVP2012,
+                   s410$Up2020, s410$ComChairRM, s410$PVIGap, s410$YrsServed,
+                   s410$Margin)
+
+###as Caucus is not numeric/possibly multcoll. with PVI/PVIGap, it is excluded
+kval <- 9
+y_sampmat <- cbind(s410$Trends)
+hat_sampmat <- x_sampmat %*% solve(t(x_sampmat) %*% x_sampmat) %*% t(x_sampmat)
+
+View(s410)
+
+```
+
+#Eliminating High Leverage Points
+
+```{r, echo = TRUE}
+
+#Moses you should comment this code
+
+for(i in 1:nrow(s410)){
+  s410$leverage[i]<-hat_sampmat[i,i]
+}
+
+
+s410_filtered <- filter(s410, leverage <= 3*(kval+1)/100)
+
+m6 <- lm(Trends~PVP2012+logpop+Caucus+Cleader+ComChairRM+Up2020, data=s410_filtered)
+
+summary(m6)
+```
+
+
+```{r, echo = TRUE}
+X <- cbind(s410_filtered$PVP2012, s410_filtered$logpop, s410_filtered$Caucus, s410_filtered$Cleader, s410_filtered$ComChairRM, s410_filtered$Up2020)
+
+
+Y <- as.matrix(s410_filtered$Trends, ncol = 1)
+
+library(leaps)
+
+
+#With regsubsets, we are forcing the model to consider a set number of regressors.
+#Regsubsets will choose the best 
+
+
+b <- regsubsets(as.matrix(X), Y)
+
+rs <- summary(b)
+
+rs
+
+rs$adjr2
+
+par(mfrow = c(1, 2))
+plot(1:6,rs$adjr2,xlab="Subset Size",ylab="Adjusted R-squared")
+```
+
+## Creating and Choosing the Models
+
+```{r, echo = TRUE}
+
+m1 <- lm(Trends~PVP2012, data = s410_filtered)
+m2 <- lm(Trends~PVP2012+Cleader, data = s410_filtered)
+m3 <- lm(Trends~PVP2012+Cleader+Caucus, data = s410_filtered)
+m4 <- lm(Trends~PVP2012+logpop+Caucus+Cleader, data = s410_filtered)
+m5 <- lm(Trends~PVP2012+logpop+ComChairRM+Cleader+Caucus, data = s410_filtered)
+
+# Subset Size 1
+
+n <- length(m1$residuals)
+npar <- length(m1$coefficients) +1
+npar
+
+#AIC and AICc for 1 regressor
+extractAIC(m1,k=2)
+extractAIC(m1,k=2)+2*npar*(npar+1)/(n-npar-1)
+
+# Subset Size 2
+npar <- length(m2$coefficients) +1
+
+#AIC and AICc for 2 regressors
+extractAIC(m2,k=2)
+extractAIC(m2,k=2)+2*npar*(npar+1)/(n-npar-1)
+
+# Subset Size 3
+
+npar <- length(m3$coefficients) +1
+
+#AIC and AICc for 3 regressors
+extractAIC(m3,k=2)
+extractAIC(m3,k=2)+2*npar*(npar+1)/(n-npar-1)
+
+# Subset Size 4
+npar <- length(m4$coefficients) +1
+
+#AIC and AICc for 4 regressors
+extractAIC(m4,k=2)
+extractAIC(m4,k=2)+2*npar*(npar+1)/(n-npar-1)
+
+# Subset Size 5
+
+npar <- length(m5$coefficients) +1
+
+#AIC and AICc for 5 regressors
+extractAIC(m5,k=2)
+extractAIC(m5,k=2)+2*npar*(npar+1)/(n-npar-1)
+
+# Subset Size 6
+npar <- length(m6$coefficients) +1
+
+#AIC and AICc for 6 regressors
+extractAIC(m6,k=2)
+extractAIC(m6,k=2)+2*npar*(npar+1)/(n-npar-1)
+
+# Note that the lowest AIC and AICc occur on the model with 2 variables
+# These two variables are PVP2012 and State Population
+
+summary(m2)
+```
+
+## Standard Diagnostic Tests
+
+```{r, echo = TRUE}
+
+diagPlot<-function(model){
+  
+p1<- ggplot(model) + aes(.fitted, .resid) + geom_point()
+p1<- p1 + stat_smooth(method="loess") + geom_hline(yintercept=0, col="red",linetype="dashed")
+p1<- p1 + xlab("Fitted values") + ylab("Residuals")
+p1<- p1 + ggtitle("Residual vs Fitted Plot") + theme_bw()
+
+p2<- ggplot(model) + stat_qq(aes(sample = .stdresid)) + geom_abline()
+p2<- p2 + xlab("Theoretical Quantiles")+ ylab("Std Residuals")
+p2<- p2 + ggtitle("Normal Q-Q") + theme_bw()
+
+p3<- ggplot(model, aes(.fitted, sqrt(abs(.stdresid)))) + geom_point(na.rm=TRUE)
+p3<- p3 + stat_smooth(method="loess", na.rm = TRUE) + xlab("Fitted Value")
+p3<- p3 + ylab(expression(sqrt("|Std residuals|")))
+p3<- p3 + ggtitle("Scale-Location") + theme_bw()
+
+p4<- ggplot(model, aes(seq_along(.cooksd), .cooksd)) + geom_bar(stat="identity", position="identity")
+p4<- p4 + xlab("Obs. Number") + ylab("Cook's distance")
+p4<- p4 + ggtitle("Cook's distance") + theme_bw()
+
+p5<- ggplot(model, aes(.hat, .stdresid)) + geom_point(aes(size=.cooksd), na.rm=TRUE)
+p5<- p5 + stat_smooth(method="loess", na.rm=TRUE)
+p5<- p5 + xlab("Leverage") + ylab("Std Residuals")
+p5<- p5 + ggtitle("Residual vs Leverage Plot")
+p5<- p5 + scale_size_continuous("Cook's Distance", range=c(1,5))
+p5<- p5 + theme_bw() + theme(legend.position="bottom")
+
+p6<- ggplot(model, aes(.hat, .cooksd))+geom_point(na.rm=TRUE) + stat_smooth(method="loess", na.rm=TRUE)
+p6<- p6 + xlab("Leverage hii") + ylab("Cook's Distance")
+p6<- p6 + ggtitle("Cook's dist vs Leverage hii/(1-hii)")
+p6<- p6 + geom_abline(slope=seq(0,3,0.5), color="gray", linetype="dashed")
+p6<- p6 + theme_bw()
+
+return(list(rvfPlot=p1, qqPlot=p2, sclLocPlot=p3, cdPlot=p4, rvlevPlot=p5, cvlPlot=p6))}
+
+diagPlot(m2)
+
+```
+
+```{r}
+plot(m2$fitted.values, Y)
+abline(1, 1)
+
+```
+
+
+
+
+
+
+
+
